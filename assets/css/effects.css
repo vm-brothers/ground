@@ -1,0 +1,497 @@
+/* ==========================================================================
+   VM BROTHERS — 3D & SCROLL-REACTIVE LAYER
+   Loaded after style.css so these rules win the cascade.
+   Pure CSS 3D transforms driven by custom properties that main.js updates
+   on scroll. No libraries, GPU-composited, ~0 cost on load.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. SCROLL PROGRESS RAIL
+   -------------------------------------------------------------------------- */
+.scroll-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 110;
+  height: 3px;
+  background: rgba(201, 197, 222, .14);
+  pointer-events: none;
+}
+.scroll-progress span {
+  display: block;
+  height: 100%;
+  transform: scaleX(var(--sp, 0));
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--gold-400), var(--gold-300) 45%, var(--turf-500));
+  box-shadow: 0 0 12px rgba(255, 193, 77, .55);
+}
+
+/* --------------------------------------------------------------------------
+   2. POINTER-TRACKED 3D TILT
+   One transform combines the pointer tilt (--rx/--ry), the hover lift (--ty)
+   and the scroll-reveal entrance (--rv-y/--rv-rot) so they never fight.
+   -------------------------------------------------------------------------- */
+.tilt {
+  position: relative;
+  transform-origin: 50% 85%;
+  transition: transform .45s var(--ease),
+              box-shadow .32s var(--ease),
+              opacity .7s var(--ease);
+}
+
+.tilt,
+.tilt:hover {
+  transform:
+    perspective(var(--tp, 900px))
+    rotateX(calc(var(--rx, 0deg) + var(--rv-rot, 0deg)))
+    rotateY(var(--ry, 0deg))
+    translate3d(0, calc(var(--ty, 0px) + var(--rv-y, 0px)), 0);
+}
+.tilt:hover { --ty: -6px; }
+
+/* while the pointer is crossing the card, track it tightly */
+.tilt.is-tilting { transition: transform .1s linear, box-shadow .32s var(--ease); }
+
+/* sheen that follows the cursor */
+.tilt::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--glare, 0);
+  transition: opacity .35s var(--ease);
+  background: radial-gradient(
+    240px circle at var(--mx-pct, 50%) var(--my-pct, 50%),
+    rgba(255, 193, 77, .20),
+    rgba(201, 197, 222, .09) 42%,
+    transparent 68%
+  );
+}
+.stat-card--accent.tilt::before {
+  background: radial-gradient(
+    220px circle at var(--mx-pct, 50%) var(--my-pct, 50%),
+    rgba(255, 214, 130, .28), transparent 64%
+  );
+}
+
+/* keep card content above the sheen */
+.tilt > * { position: relative; z-index: 2; }
+
+/* scroll-reveal feeds the same transform */
+.tilt.reveal            { --rv-y: 30px; --rv-rot: 7deg; }
+.tilt.reveal.is-visible { --rv-y: 0px;  --rv-rot: 0deg; }
+
+/* everything else gets a simple 3D lift-in */
+.reveal:not(.tilt) {
+  transform: perspective(1200px) translate3d(0, 30px, 0) rotateX(6deg);
+  transform-origin: 50% 100%;
+}
+.reveal:not(.tilt).is-visible { transform: none; }
+
+/* --------------------------------------------------------------------------
+   3. 3D CRICKET BALLS
+   A statically-lit sphere with a seam ring genuinely orbiting it in 3D.
+   -------------------------------------------------------------------------- */
+.ball3d {
+  position: relative;
+  flex: none;
+  width: clamp(62px, 11vw, 86px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  perspective: 420px;
+  box-shadow: 0 10px 22px rgba(23, 21, 48, .28);
+}
+.ball3d--season {
+  background: radial-gradient(circle at 33% 27%, #D4596C 0%, #A82338 42%, #6B1223 78%, #470B18 100%);
+}
+.ball3d--tennis {
+  background: radial-gradient(circle at 33% 27%, #EAF27A 0%, #C9D838 42%, #8A961C 78%, #5E680F 100%);
+}
+
+.ball3d__core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  transform-style: preserve-3d;
+  animation: ballSpin 11s linear infinite;
+}
+.format-card:hover .ball3d__core { animation-duration: 3.4s; }
+@keyframes ballSpin { to { transform: rotateY(360deg); } }
+
+.ball3d__seam {
+  position: absolute;
+  inset: 7%;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 248, 230, .82);
+  transform: rotateX(76deg);
+}
+.ball3d__seam--b {
+  border-width: 1.5px;
+  border-color: rgba(255, 248, 230, .5);
+  transform: rotateX(70deg);
+}
+.ball3d--tennis .ball3d__seam    { border-color: rgba(255, 255, 250, .9); }
+.ball3d--tennis .ball3d__seam--b { border-color: rgba(255, 255, 250, .55); }
+
+/* lighting sits above the seam so the ball's dark side dims it */
+.ball3d__shade {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 34% 28%, transparent 0 38%, rgba(20, 6, 12, .40) 78%, rgba(12, 3, 7, .72) 100%);
+  box-shadow: inset -6px -8px 18px rgba(0, 0, 0, .35);
+}
+.ball3d__gloss {
+  position: absolute;
+  top: 12%;
+  left: 20%;
+  width: 34%;
+  height: 26%;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(1px);
+  background: radial-gradient(circle at 40% 40%, rgba(255, 255, 255, .72), rgba(255, 255, 255, 0) 70%);
+}
+
+/* --------------------------------------------------------------------------
+   4. DAY -> NIGHT SCROLL STAGE
+   --p (0-1 progress), --night, --lights, --stars are set by main.js.
+   -------------------------------------------------------------------------- */
+.daynight {
+  position: relative;
+  height: 300vh;
+  background: var(--navy-950);
+}
+.daynight__stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* sky */
+.dn__sky, .dn__night { position: absolute; inset: 0; }
+.dn__sky {
+  background: linear-gradient(180deg, #5E97C6 0%, #9FC3DC 38%, #E4CFA6 72%, #EFD9AE 100%);
+}
+.dn__night {
+  opacity: var(--night, 0);
+  background: linear-gradient(180deg, #080617 0%, #15132B 42%, #241F45 78%, #2E2851 100%);
+}
+
+/* stars */
+.dn__stars {
+  position: absolute;
+  inset: 0 0 38%;
+  opacity: var(--stars, 0);
+  animation: twinkle 5.5s ease-in-out infinite alternate;
+  background-image:
+    radial-gradient(1.7px 1.7px at 6% 14%,  #fff, transparent),
+    radial-gradient(1.3px 1.3px at 14% 34%, #fff, transparent),
+    radial-gradient(1.9px 1.9px at 22% 9%,  #fff, transparent),
+    radial-gradient(1.2px 1.2px at 29% 26%, #fff, transparent),
+    radial-gradient(1.6px 1.6px at 36% 6%,  #fff, transparent),
+    radial-gradient(1.3px 1.3px at 43% 31%, #fff, transparent),
+    radial-gradient(2px   2px   at 51% 17%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 58% 38%, #fff, transparent),
+    radial-gradient(1.7px 1.7px at 64% 11%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 71% 29%, #fff, transparent),
+    radial-gradient(1.8px 1.8px at 78% 7%,  #fff, transparent),
+    radial-gradient(1.2px 1.2px at 84% 23%, #fff, transparent),
+    radial-gradient(1.6px 1.6px at 91% 36%, #fff, transparent),
+    radial-gradient(1.3px 1.3px at 97% 13%, #fff, transparent),
+    radial-gradient(1.1px 1.1px at 10% 47%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 33% 52%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 47% 44%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 68% 49%, #fff, transparent),
+    radial-gradient(1.1px 1.1px at 88% 46%, #fff, transparent),
+    radial-gradient(1.6px 1.6px at 19% 20%, #fff, transparent);
+}
+@keyframes twinkle { from { filter: brightness(.78); } to { filter: brightness(1.18); } }
+
+/* sun & moon */
+.dn__sun {
+  position: absolute;
+  left: 26%;
+  top: 14%;
+  width: clamp(58px, 9vw, 96px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, #FFF8D8 0 42%, #FFC95A 68%, rgba(255, 190, 70, 0) 74%);
+  box-shadow: 0 0 80px 26px rgba(255, 201, 90, .42);
+  transform: translate(-50%, calc(var(--p, 0) * 52vh));
+  opacity: calc(1 - var(--night, 0));
+}
+.dn__moon {
+  position: absolute;
+  left: 74%;
+  top: 13%;
+  width: clamp(40px, 6vw, 62px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 32%, #FFFFFF 0 40%, #DEDBEC 70%, #A9A3CC 100%);
+  box-shadow: 0 0 48px 10px rgba(222, 219, 236, .32);
+  transform: translate(-50%, calc((1 - var(--night, 0)) * 26vh));
+  opacity: var(--night, 0);
+}
+
+/* the ground, laid back in 3D */
+.dn__scene { position: absolute; inset: 0; }
+
+.dn__ground {
+  position: absolute;
+  left: 50%;
+  bottom: -14%;
+  width: min(210%, 2100px);
+  aspect-ratio: 2 / 1;
+  transform: translateX(-50%) perspective(1000px) rotateX(64deg);
+  transform-origin: 50% 100%;
+}
+.dn__field {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.045) 0 4%, rgba(0,0,0,.05) 4% 8%),
+    radial-gradient(circle at 50% 42%, #3C8358 0%, #2A6243 48%, #17402C 100%);
+  box-shadow: inset 0 0 120px rgba(8, 24, 16, .6);
+  filter: brightness(calc(1 - var(--night, 0) * .42));
+}
+.dn__ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 50%;
+  height: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(240, 250, 244, .16);
+  border-radius: 50%;
+}
+.dn__pitch {
+  position: absolute;
+  left: 50%;
+  top: 37%;
+  width: 6.5%;
+  height: 26%;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #D9CCA8, #B9A478);
+  box-shadow: 0 0 24px rgba(0, 0, 0, .25);
+}
+
+/* floodlight towers */
+.dn__tower {
+  position: absolute;
+  left: var(--x);
+  bottom: var(--b);
+  width: var(--w, 6px);
+  height: var(--h);
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #5A5488, #211E3C);
+  border-radius: 2px 2px 0 0;
+}
+.dn__lamp {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(var(--w, 6px) * 5.5);
+  height: 11px;
+  border-radius: 3px;
+  background: #4C467B;
+  box-shadow: 0 0 calc(var(--lights, 0) * 52px) calc(var(--lights, 0) * 13px) rgba(255, 216, 138, .7);
+}
+.dn__lamp::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  border-radius: 2px;
+  background: #FFEDC2;
+  opacity: var(--lights, 0);
+}
+.dn__beam {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: clamp(90px, 13vw, 170px);
+  height: clamp(170px, 26vh, 330px);
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(255, 224, 158, .40), rgba(255, 224, 158, 0) 76%);
+  clip-path: polygon(43% 0, 57% 0, 100% 100%, 0 100%);
+  filter: blur(9px);
+  opacity: var(--lights, 0);
+  pointer-events: none;
+}
+
+/* copy — the two states crossfade in the same grid cell */
+.dn__copy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--header-h) + 1rem) 1.25rem 22vh;
+  text-align: center;
+  z-index: 3;
+}
+.dn__state { grid-area: 1 / 1; max-width: 44ch; }
+.dn__state--day   { opacity: calc(1 - var(--night, 0)); }
+.dn__state--night { opacity: var(--night, 0); }
+
+.dn__label {
+  font-family: var(--font-display);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: #1C4631;
+  margin-bottom: .9rem;
+}
+.dn__label--night { color: var(--gold-300); }
+
+.dn__title {
+  font-size: clamp(2.1rem, 1.2rem + 4.4vw, 4.25rem);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.04;
+  color: #141229;
+  margin-bottom: .9rem;
+  text-shadow: 0 2px 26px rgba(255, 255, 255, .35);
+}
+.dn__title--night { color: #FFFFFF; text-shadow: 0 2px 34px rgba(8, 6, 23, .6); }
+
+.dn__text {
+  font-size: clamp(1rem, .95rem + .4vw, 1.1875rem);
+  color: #231F45;
+  margin: 0 auto;
+  max-width: 40ch;
+}
+.dn__text--night { color: var(--lav-200); }
+
+/* progress rail */
+.dn__rail {
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  z-index: 4;
+}
+.dn__rail-label {
+  padding: .3rem .7rem;
+  font-family: var(--font-display);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #FFFFFF;
+  background: rgba(12, 10, 26, .48);
+  border-radius: var(--r-pill);
+  backdrop-filter: blur(6px);
+}
+.dn__rail-bar {
+  width: clamp(110px, 26vw, 240px);
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: rgba(12, 10, 26, .3);
+  overflow: hidden;
+}
+.dn__rail-bar i {
+  display: block;
+  height: 100%;
+  transform: scaleX(var(--p, 0));
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--gold-400), var(--gold-300));
+}
+
+.dn__hint {
+  position: absolute;
+  left: 50%;
+  bottom: 2.6%;
+  transform: translateX(-50%);
+  margin: 0;
+  z-index: 4;
+  font-family: var(--font-display);
+  font-size: .66rem;
+  font-weight: 700;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: #FFFFFF;
+  opacity: calc(.78 - var(--p, 0) * 1.6);
+  text-shadow: 0 1px 10px rgba(8, 6, 23, .7);
+}
+
+@media (max-width: 640px) {
+  .daynight { height: 240vh; }
+  .dn__copy { padding-bottom: 26vh; }
+  .dn__ground { width: 290%; bottom: -10%; }
+}
+
+/* --------------------------------------------------------------------------
+   5. HERO SCROLL PARALLAX
+   -------------------------------------------------------------------------- */
+.hero__stadium { transform: translate3d(0, var(--hero-sy, 0px), 0); }
+.hero__content {
+  transform: translate3d(var(--hero-mx, 0px), var(--hero-cy, 0px), 0);
+  opacity: var(--hero-op, 1);
+}
+.hero__beam--l { transform: translate3d(calc(var(--hero-mx, 0px) * -1.8), 0, 0); }
+.hero__beam--r { transform: translate3d(calc(var(--hero-mx, 0px) * 1.8), 0, 0); }
+
+/* --------------------------------------------------------------------------
+   6. NO-JAVASCRIPT FALLBACK
+   Without JS nothing updates --night, so the pinned stage would show a frozen
+   daytime sky for three screens of scrolling. Unpin it and show the night
+   scene — the floodlights are the point of the section.
+   -------------------------------------------------------------------------- */
+html:not(.js) .daynight { height: auto; }
+html:not(.js) .daynight__stage {
+  position: static;
+  height: auto;
+  min-height: 94vh;
+  --p: 1; --night: 1; --lights: 1; --stars: 1;
+}
+html:not(.js) .dn__state--day { display: none; }
+html:not(.js) .dn__hint,
+html:not(.js) .dn__rail { display: none; }
+html:not(.js) .reveal { opacity: 1; transform: none; }
+
+/* --------------------------------------------------------------------------
+   7. REDUCED MOTION & PRINT — overrides for everything above
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .tilt, .tilt:hover {
+    transform: none !important;
+    transition: box-shadow .2s linear !important;
+  }
+  .tilt::before { display: none; }
+  .reveal:not(.tilt) { transform: none; opacity: 1; }
+  .ball3d__core,
+  .format-card:hover .ball3d__core { animation: none; transform: rotateY(-24deg); }
+  .dn__stars { animation: none; }
+  .btn { transform: none !important; }
+  .hero__stadium, .hero__content, .hero__beam--l, .hero__beam--r { transform: none !important; }
+  .hero__content { opacity: 1 !important; }
+
+  /* settle on the lit night scene rather than animating through to it */
+  .daynight { height: auto; }
+  .daynight__stage {
+    position: static;
+    height: auto;
+    min-height: 94vh;
+    --p: 1; --night: 1; --lights: 1; --stars: 1;
+  }
+  .dn__state--day { display: none; }
+  .dn__hint, .dn__rail { display: none; }
+}
+
+@media print {
+  .scroll-progress, .dn__rail, .dn__hint { display: none !important; }
+  .daynight { height: auto; }
+  .daynight__stage { position: static; height: auto; min-height: 0; padding-block: 2rem; }
+  .tilt, .tilt:hover { transform: none !important; }
+}
